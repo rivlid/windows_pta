@@ -89,18 +89,18 @@ source "proxmox-iso" "windows" {
 
   # ── TPM (обязательно для Windows 11, опционально для WinServer) ──────────
   # Раскомментируй для Windows 11:
-   tpm_config {
-     tpm_storage_pool = var.storage_pool
-     tpm_version = "v2.0"
-   }
+  # tpm_config {
+  #   tpm_storage_pool = var.storage_pool
+  #   tpm_version = "v2.0"
+  # }
 
   # EFI диск (нужен для Secure Boot / Windows 11)
   # Раскомментируй для Windows 11:
-   efi_config {
-     efi_storage_pool  = var.storage_pool
-     efi_type          = "4m"
-     pre_enrolled_keys = true
-   }
+  # efi_config {
+  #   efi_storage_pool  = var.storage_pool
+  #   efi_type          = "4m"
+  #   pre_enrolled_keys = true
+  # }
 
   # ── Communicator: WinRM (вместо SSH как у Linux) ─────────────────────────
   communicator   = "winrm"

@@ -64,24 +64,25 @@ source "proxmox-iso" "windows" {
   }
 
   # ── ISO: основной образ Windows ──────────────────────────────────────────
-  iso_file            = var.win_iso
-  iso_storage_pool    = "local"
-  unmount_iso         = true
-
+  boot_iso {
+    iso_file = var.win_iso
+    unmount  = true
+    device   = "ide2"
+  }
   # ── ISO: autounattend.xml (Packer сам создаёт CD с этими файлами) ────────
   additional_iso_files {
-    cd_files = [
-      "./packer/http/autounattend.xml",
-    ]
-    cd_label            = "Unattend"
-    unmount             = true
-    iso_storage_pool    = "local"
+    cd_files         = ["./packer/http/autounattend.xml"]
+    cd_label         = "Unattend"
+    unmount          = true
+    iso_storage_pool = "local"
+    device           = "ide0"
   }
 
   # ── ISO: VirtIO драйверы ─────────────────────────────────────────────────
   additional_iso_files {
     iso_file = var.virtio_iso
     unmount  = true
+    device   = "ide1"
   }
 
   # ── QEMU Guest Agent ─────────────────────────────────────────────────────

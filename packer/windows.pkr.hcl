@@ -64,10 +64,9 @@ source "proxmox-iso" "windows" {
   }
 
   # ── ISO: основной образ Windows ──────────────────────────────────────────
-  boot_iso {
-    iso_file    = var.win_iso
-    unmount     = true
-  }
+  iso_file            = var.win_iso
+  iso_storage_pool    = "local"
+  unmount_iso         = true
 
   # ── ISO: autounattend.xml (Packer сам создаёт CD с этими файлами) ────────
   additional_iso_files {

@@ -1,0 +1,6 @@
+---
+# ansible/group_vars/windows.yml
+# Переменные для всей группы windows
+
+# Пароль из переменной окружения или vault
+vault_win_password: "{{ lookup('env', 'WIN_PASSWORD') }}"

@@ -1,0 +1,20 @@
+# Секреты
+packer/secrets.pkrvars.hcl
+terraform/terraform.tfvars
+
+# Terraform state
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+
+# Terraform рабочие директории
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+
+# Packer
+downloaded_iso_path/
+packer/packer_cache/
+
+# OS
+.DS_Store
+
+.secrets.env

@@ -1,0 +1,79 @@
+---
+# ansible/roles/windows-base/tasks/main.yml
+# Базовая настройка Windows — запускается на каждой VM после деплоя
+
+- name: Set hostname (если не задан через cloudbase-init)
+  ansible.windows.win_hostname:
+    name: "{{ inventory_hostname }}"
+  register: hostname_result
+
+- name: Set timezone to UTC
+  community.windows.win_timezone:
+    timezone: UTC
+
+- name: Ensure WinRM service is running
+  ansible.windows.win_service:
+    name: WinRM
+    state: started
+    start_mode: auto
+
+- name: Configure WinRM for Ansible (Basic auth, HTTP)
+  ansible.windows.win_shell: |
+    winrm set winrm/config/service '@{AllowUnencrypted="true"}'
+    winrm set winrm/config/service/auth '@{Basic="true"}'
+  changed_when: false
+
+- name: Open WinRM firewall port
+  ansible.windows.win_firewall_rule:
+    name: WinRM HTTP
+    localport: 5985
+    action: allow
+    direction: in
+    protocol: tcp
+    state: present
+    enabled: true
+
+- name: Open RDP firewall port
+  ansible.windows.win_firewall_rule:
+    name: Remote Desktop
+    localport: 3389
+    action: allow
+    direction: in
+    protocol: tcp
+    state: present
+    enabled: true
+
+- name: Install Windows updates (only security)
+  ansible.windows.win_updates:
+    category_names:
+      - SecurityUpdates
+      - CriticalUpdates
+    state: installed
+    reboot: true
+    reboot_timeout: 600
+  register: update_result
+
+- name: Install useful packages via Chocolatey
+  chocolatey.chocolatey.win_chocolatey:
+    name:
+      - notepadplusplus
+      - 7zip
+      - googlechrome
+    state: present
+  ignore_errors: true  # Chocolatey может не быть установлен
+
+- name: Reboot if hostname was changed
+  ansible.windows.win_reboot:
+    reboot_timeout: 300
+  when: hostname_result.reboot_required | default(false)
+
+- name: Show system info
+  ansible.windows.win_shell: |
+    Write-Output "Hostname: $env:COMPUTERNAME"
+    Write-Output "OS: $((Get-WmiObject Win32_OperatingSystem).Caption)"
+    Write-Output "IP: $((Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.IPAddress -ne '127.0.0.1'}).IPAddress -join ', ')"
+  register: sysinfo
+
+- name: Print system info
+  debug:
+    msg: "{{ sysinfo.stdout_lines }}"

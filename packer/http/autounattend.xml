@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  autounattend.xml — автоматическая установка Windows Server 2022 / Windows 11
+  Кладётся в packer/http/ и монтируется Packer'ом как CD-диск с меткой "Unattend"
+
+  Для переключения между версиями:
+    WinServer 2022 Standard:   Key = VDYBN-27WPP-V4HQT-9VMD4-VMK7H  (eval, без активации)
+    WinServer 2022 Datacenter: Key = WX4NM-KYWYW-QJJR4-XV3QB-6VM33  (eval)
+    Windows 11 Pro:            Key = W269N-WFGWX-YVC9B-4J6C9-T83GX  (generic KMS)
+-->
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+
+  <!-- ═══ Фаза 1: Windows PE (до начала установки) ═══════════════════════ -->
+  <settings pass="windowsPE">
+
+    <component name="Microsoft-Windows-International-Core-WinPE"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <SetupUILanguage>
+        <UILanguage>en-US</UILanguage>
+      </SetupUILanguage>
+      <InputLocale>en-US</InputLocale>
+      <SystemLocale>en-US</SystemLocale>
+      <UILanguage>en-US</UILanguage>
+      <UserLocale>en-US</UserLocale>
+    </component>
+
+    <component name="Microsoft-Windows-Setup"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+
+      <!-- Принять лицензию -->
+      <UserData>
+        <AcceptEula>true</AcceptEula>
+        <!-- Eval ключ для WinServer 2022 Standard (Desktop Experience) -->
+        <!-- Eval работает 180 дней без активации                        -->
+        <!--
+        <ProductKey>
+          <Key>VDYBN-27WPP-V4HQT-9VMD4-VMK7H</Key>
+          <WillShowUI>Never</WillShowUI>
+        </ProductKey>
+        -->
+      </UserData>
+
+      <!-- Загрузить VirtIO драйвер для диска ДО разметки -->
+      <!-- Без этого установщик не видит VirtIO диск       -->
+      <RunSynchronous>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <Description>Load VirtIO storage driver</Description>
+          <Path>cmd /c dism /image:X:\ /add-driver /driver:E:\viostor\2k22\amd64 /recurse /forceunsigned</Path>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>2</Order>
+          <Description>Load VirtIO network driver</Description>
+          <Path>cmd /c dism /image:X:\ /add-driver /driver:E:\NetKVM\2k22\amd64 /recurse /forceunsigned</Path>
+        </RunSynchronousCommand>
+      </RunSynchronous>
+
+      <!-- Разметка диска: GPT + EFI + MSR + OS -->
+      <DiskConfiguration>
+        <Disk wcm:action="add">
+          <DiskID>0</DiskID>
+          <WillWipeDisk>true</WillWipeDisk>
+          <CreatePartitions>
+            <!-- EFI System Partition -->
+            <CreatePartition wcm:action="add">
+              <Order>1</Order>
+              <Type>EFI</Type>
+              <Size>100</Size>
+            </CreatePartition>
+            <!-- Microsoft Reserved -->
+            <CreatePartition wcm:action="add">
+              <Order>2</Order>
+              <Type>MSR</Type>
+              <Size>128</Size>
+            </CreatePartition>
+            <!-- OS -->
+            <CreatePartition wcm:action="add">
+              <Order>3</Order>
+              <Type>Primary</Type>
+              <Extend>true</Extend>
+            </CreatePartition>
+          </CreatePartitions>
+          <ModifyPartitions>
+            <ModifyPartition wcm:action="add">
+              <Order>1</Order>
+              <PartitionID>1</PartitionID>
+              <Label>System</Label>
+              <Format>FAT32</Format>
+            </ModifyPartition>
+            <ModifyPartition wcm:action="add">
+              <Order>2</Order>
+              <PartitionID>2</PartitionID>
+            </ModifyPartition>
+            <ModifyPartition wcm:action="add">
+              <Order>3</Order>
+              <PartitionID>3</PartitionID>
+              <Label>Windows</Label>
+              <Letter>C</Letter>
+              <Format>NTFS</Format>
+            </ModifyPartition>
+          </ModifyPartitions>
+        </Disk>
+        <WillShowUI>Never</WillShowUI>
+      </DiskConfiguration>
+
+      <!-- Куда ставить -->
+      <ImageInstall>
+        <OSImage>
+          <WillShowUI>Never</WillShowUI>
+          <InstallTo>
+            <DiskID>0</DiskID>
+            <PartitionID>3</PartitionID>
+          </InstallTo>
+          <!-- Выбрать редакцию: 0=Standard Core, 1=Standard GUI, 2=Datacenter Core, 3=Datacenter GUI -->
+          <!-- Для Windows 11 этот блок не нужен — только одна редакция                               -->
+          <InstallFrom>
+            <MetaData wcm:action="add">
+              <Key>/IMAGE/INDEX</Key>
+              <Value>2</Value><!-- WinServer 2022 Standard с Desktop Experience -->
+            </MetaData>
+          </InstallFrom>
+        </OSImage>
+      </ImageInstall>
+
+    </component>
+  </settings>
+
+  <!-- ═══ Фаза 2: Specialize (после установки, до OOBE) ══════════════════ -->
+  <settings pass="specialize">
+    <component name="Microsoft-Windows-Shell-Setup"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS">
+      <ComputerName>*</ComputerName><!-- * = случайное имя; cloudbase-init переименует -->
+      <TimeZone>UTC</TimeZone>
+    </component>
+  </settings>
+
+  <!-- ═══ Фаза 3: OOBE (первый запуск) ══════════════════════════════════ -->
+  <settings pass="oobeSystem">
+    <component name="Microsoft-Windows-Shell-Setup"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS">
+
+      <!-- Пропустить весь OOBE wizard -->
+      <OOBE>
+        <HideEULAPage>true</HideEULAPage>
+        <HideLocalAccountScreen>true</HideLocalAccountScreen>
+        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+        <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+        <SkipMachineOOBE>true</SkipMachineOOBE>
+        <SkipUserOOBE>true</SkipUserOOBE>
+        <NetworkLocation>Work</NetworkLocation>
+        <ProtectYourPC>3</ProtectYourPC>
+      </OOBE>
+
+      <!-- Пароль Administrator -->
+      <!-- Значение = base64("Password" + "AdministratorPassword") -->
+      <!-- Это СТАНДАРТНЫЙ формат autounattend — не просто base64 пароля -->
+      <UserAccounts>
+        <AdministratorPassword>
+          <Value>QWxzcHpkYXB+MjlBZG1pbmlzdHJhdG9yUGFzc3dvcmQ=</Value>
+          <!-- Выше: base64("Str0ngP@ssw0rd!AdministratorPassword") -->
+          <!-- ЗАМЕНИ на свой: echo -n "ТВОЙПАРОЛЬAdministratorPassword" | base64 -->
+          <PlainText>false</PlainText>
+        </AdministratorPassword>
+      </UserAccounts>
+
+      <!-- Автологин для Packer provisioner'ов -->
+      <AutoLogon>
+        <Password>
+          <Value>QWxzcHpkYXB+Mjk=</Value>
+          <!-- base64("Str0ngP@ssw0rd!") — ЗАМЕНИ на свой -->
+          <PlainText>false</PlainText>
+        </Password>
+        <Username>Administrator</Username>
+        <Enabled>true</Enabled>
+        <LogonCount>5</LogonCount>
+      </AutoLogon>
+
+      <!-- Первые команды — включить WinRM для Packer -->
+      <FirstLogonCommands>
+        <SynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <Description>Enable WinRM</Description>
+          <CommandLine>cmd /c winrm quickconfig -quiet</CommandLine>
+          <RequiresUserInput>false</RequiresUserInput>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>2</Order>
+          <Description>Allow WinRM unencrypted</Description>
+          <CommandLine>cmd /c winrm set winrm/config/service @{AllowUnencrypted="true"}</CommandLine>
+          <RequiresUserInput>false</RequiresUserInput>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>3</Order>
+          <Description>Enable WinRM basic auth</Description>
+          <CommandLine>cmd /c winrm set winrm/config/service/auth @{Basic="true"}</CommandLine>
+          <RequiresUserInput>false</RequiresUserInput>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>4</Order>
+          <Description>Open WinRM firewall</Description>
+          <CommandLine>cmd /c netsh advfirewall firewall set rule name="Windows Remote Management (HTTP-In)" new enable=yes</CommandLine>
+          <RequiresUserInput>false</RequiresUserInput>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>5</Order>
+          <Description>Set execution policy</Description>
+          <CommandLine>powershell -Command "Set-ExecutionPolicy Unrestricted -Force"</CommandLine>
+          <RequiresUserInput>false</RequiresUserInput>
+        </SynchronousCommand>
+      </FirstLogonCommands>
+
+    </component>
+  </settings>
+
+</unattend>

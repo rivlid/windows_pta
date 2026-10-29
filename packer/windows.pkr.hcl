@@ -76,7 +76,7 @@ source "proxmox-iso" "windows" {
     ]
     cd_label            = "Unattend"
     unmount             = true
-    iso_storage_pool    = var.storage_pool
+    iso_storage_pool    = "local"
   }
 
   # ── ISO: VirtIO драйверы ─────────────────────────────────────────────────
